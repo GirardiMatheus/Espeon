@@ -1,4 +1,14 @@
+import logging
 import nmap
+
+logging.basicConfig(
+  level=logging.INFO,
+  format="%(asctime)s - %(levelname)s - %(message)s",
+  handlers=[
+    logging.FileHandler("scanner.log"),
+    logging.StreamHandler()
+  ]
+)
 
 class NmapScanner:
 
