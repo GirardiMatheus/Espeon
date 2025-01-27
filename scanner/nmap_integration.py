@@ -2,36 +2,41 @@ import logging
 import nmap
 
 logging.basicConfig(
-  level=logging.INFO,
-  format="%(asctime)s - %(levelname)s - %(message)s",
-  handlers=[
-    logging.FileHandler("scanner.log"),
-    logging.StreamHandler()
-  ]
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("scanner.log"),
+        logging.StreamHandler()
+    ]
 )
 
 class NmapScanner:
+    def __init__(self):
+        self.nm = nmap.PortScanner()
 
-  def __init__(self):
-    self.nm = nmap.PortScanner()
+    def scan_host(self, host: str, ports: str = "1-65535", detect_os: bool = False) -> dict:
+        try:
+            print(f"Starting scanning on {host} on ports {ports}...")
+            arguments = "-sV"
+            if detect_os:
+                arguments += " -O"
+            self.nm.scan(hosts=host, ports=ports, arguments=arguments)
 
-  def scan_host(self, host: str, ports: str = "1-65535") -> dict:
+            if not self.nm.all_hosts():
+                logging.error("No hosts found. Ensure the target is reachable.")
+                return {}
 
-    try: 
-      print(f"Starting scanning on {host} on ports {ports}...")
-      self.nm.scan(hosts=host, ports=ports, arguments="-sV")
-      return self._parse_results(host)
+            return self._parse_results(host)
 
-    except nmap.PortScannerError as e:
-      print(f"Error running Nmap: {e}")
-    except Exception as e:
-      print(f"Unexpected error: {e}")
-    return{}
+        except nmap.PortScannerError as e:
+            logging.error(f"Error running Nmap: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}")
+        return {}
 
-  def _parse_results(self, host: str) -> dict:
-
-    results = {}
-    if host in self.nm.all_hosts():
+    def _parse_results(self, host: str) -> dict:
+        results = {}
+        if host in self.nm.all_hosts():
             results['host'] = host
             results['status'] = self.nm[host].state()
             results['ports'] = []
@@ -48,17 +53,17 @@ class NmapScanner:
                     }
                     results['ports'].append(port_info)
 
-    return results   
+            if 'osmatch' in self.nm[host]:
+                results['os'] = [
+                    {
+                        'name': osmatch['name'],
+                        'accuracy': osmatch['accuracy'],
+                        'type': osmatch.get('osclass', [{}])[0].get('type', 'N/A'),
+                    }
+                    for osmatch in self.nm[host]['osmatch']
+                ]
+        return results
 
-
-if __name__ == "__main__":
-    scanner = NmapScanner()
-    host_to_scan = input("Enter the host to be scanned (IP or hostname): ")
-    ports_to_scan = input("Enter the range of ports to scan (default 1-65535): ") or "1-65535"
-
-    results = scanner.scan_host(host_to_scan, ports_to_scan)
-    if results:
-        print("\nScan Results: ")
-        print(results)
-    else:
-        print("\nNo results found or error when scanning.")
+    def has_admin_privileges(self) -> bool:
+        import os
+        return os.geteuid() == 0
