@@ -4,7 +4,31 @@ import csv
 class ReportGenerator:
     def __init__(self):
         pass
+    
+    def analyze_security(self, results):
+        analysis = {}
+        ports = results.get("ports", [])
+        
+        for port_info in ports:
+            port = port_info.get("port")
+            name = port_info.get("name", "unknown")
+            product = port_info.get("product", "unknown")
+            version = port_info.get("version", "unknown")
+            
+            if not name:
+                continue  
+            
 
+            if name == "http" and "Tornado" in product:
+                analysis[port] = f"Outdated web server detected: {product} {version}. Consider updating."
+            elif name == "postgresql" and version.startswith("9.6"):
+                analysis[port] = f"Potential outdated PostgreSQL version detected: {version}. Consider upgrading."
+            elif name == "mongod":
+                analysis[port] = "MongoDB detected. Ensure authentication is enabled."
+            else:
+                analysis[port] = f"No specific issues identified for {name} ({product} {version})."
+
+        return analysis
     def generate_text_report(self, results: dict) -> str:
         try:
             report = []
@@ -22,6 +46,22 @@ class ReportGenerator:
                     report.append(
                         f"  Name: {os['name']}, Accuracy: {os['accuracy']}, Type: {os['type']}"
                     )
+            if 'vulnerabilities' in results and results['vulnerabilities']:
+                report.append("\n# Análise de Segurança")
+                report.append("## Riscos Detectados:")
+                for service, cves in results["vulnerabilities"].items():
+                    report.append(f"  Serviço: {service}")
+                    for cve in cves:
+                        report.append(
+                            f"    - CVE ID: {cve['id']}, Severidade: {cve['severity']}, "
+                            f"Descrição: {cve['description']}"
+                        )
+                report.append("\n## Sugestões de Mitigação:")
+                for service, cves in results["vulnerabilities"].items():
+                    report.append(f"  Serviço: {service}")
+                    report.append("    - Aplique patches ou atualizações mais recentes disponíveis.")
+                    report.append("    - Restrinja o acesso ao serviço a IPs confiáveis, se possível.")
+                    report.append("    - Use autenticação forte e configure firewalls adequadamente.")
             return "\n".join(report)
         except Exception as e:
             raise RuntimeError(f"Failed to generate text report: {e}")
@@ -40,5 +80,11 @@ class ReportGenerator:
                 writer.writerow(["Port", "State", "Name", "Product", "Version"])
                 for port in results.get("ports", []):
                     writer.writerow([port["port"], port["state"], port["name"], port["product"], port["version"]])
+                if 'vulnerabilities' in results and results['vulnerabilities']:
+                    writer.writerow([])
+                    writer.writerow(["Service", "CVE ID", "Description", "Severity"])
+                    for service, cves in results["vulnerabilities"].items():
+                        for cve in cves:
+                            writer.writerow([service, cve["id"], cve["description"], cve["severity"]])
         except Exception as e:
             raise RuntimeError(f"Failed to generate CSV report: {e}")
