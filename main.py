@@ -35,7 +35,6 @@ def main():
         vulnerabilities = cve_checker.analyze_results(results.get("ports", []))
         results["vulnerabilities"] = vulnerabilities
 
-        # Adicionando análise de segurança
         print("Performing security analysis...")
         security_analysis = report_gen.analyze_security(results)
         results["security_analysis"] = security_analysis
