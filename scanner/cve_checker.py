@@ -16,7 +16,6 @@ class CVEChecker:
                 logging.warning("Skipping port due to missing service name.")
                 continue
 
-            # Construa o parâmetro da query
             query = f"{service}"
             if version:
                 query += f"+{version}"
