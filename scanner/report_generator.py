@@ -35,17 +35,31 @@ class ReportGenerator:
             report.append(f"Host: {results['host']}")
             report.append(f"Status: {results['status']}")
             report.append("Ports:")
+            
             for port in results.get("ports", []):
                 report.append(
                     f"  Port: {port['port']}, State: {port['state']}, "
                     f"Name: {port['name']}, Product: {port['product']}, Version: {port['version']}"
                 )
+                
+                if port.get("protocol") == "udp":
+                    report.append("    - Protocolo: UDP (pode ser filtrado ou bloqueado)")
+
+                if port.get("reason"):
+                    report.append(f"    - Motivo da resposta: {port['reason']}")
+
+                if "scripts" in port:
+                    report.append("    - Scripts executados:")
+                    for script in port["scripts"]:
+                        report.append(f"      - {script['id']}: {script['output']}")
+
             if 'os' in results:
                 report.append("OS Detection:")
                 for os in results['os']:
                     report.append(
                         f"  Name: {os['name']}, Accuracy: {os['accuracy']}, Type: {os['type']}"
                     )
+
             if 'vulnerabilities' in results and results['vulnerabilities']:
                 report.append("\n# Análise de Segurança")
                 report.append("## Riscos Detectados:")
@@ -56,12 +70,14 @@ class ReportGenerator:
                             f"    - CVE ID: {cve['id']}, Severidade: {cve['severity']}, "
                             f"Descrição: {cve['description']}"
                         )
+
                 report.append("\n## Sugestões de Mitigação:")
                 for service, cves in results["vulnerabilities"].items():
                     report.append(f"  Serviço: {service}")
                     report.append("    - Aplique patches ou atualizações mais recentes disponíveis.")
                     report.append("    - Restrinja o acesso ao serviço a IPs confiáveis, se possível.")
                     report.append("    - Use autenticação forte e configure firewalls adequadamente.")
+
             return "\n".join(report)
         except Exception as e:
             raise RuntimeError(f"Failed to generate text report: {e}")
@@ -77,9 +93,21 @@ class ReportGenerator:
         try:
             with open(output_file, "w", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow(["Port", "State", "Name", "Product", "Version"])
+                writer.writerow(["Port", "State", "Name", "Product", "Version", "Protocol", "Firewall Reason", "Scripts"])
                 for port in results.get("ports", []):
-                    writer.writerow([port["port"], port["state"], port["name"], port["product"], port["version"]])
+                    script_data = "; ".join(
+                        [f"{script['id']}: {script['output']}" for script in port.get("scripts", [])]
+                    )
+                    writer.writerow([
+                        port["port"],
+                        port["state"],
+                        port["name"],
+                        port["product"],
+                        port["version"],
+                        port.get("protocol", "N/A"),
+                        port.get("reason", "N/A"),
+                        script_data
+                    ])
                 if 'vulnerabilities' in results and results['vulnerabilities']:
                     writer.writerow([])
                     writer.writerow(["Service", "CVE ID", "Description", "Severity"])

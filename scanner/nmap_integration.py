@@ -14,12 +14,19 @@ class NmapScanner:
     def __init__(self):
         self.nm = nmap.PortScanner()
 
-    def scan_host(self, host: str, ports: str = "1-65535", detect_os: bool = False) -> dict:
+    def scan_host(self, host: str, ports: str = "1-65535", detect_os: bool = False, udp: bool = False, firewall_detection: bool = False, script: str = None) -> dict:
         try:
             print(f"Starting scanning on {host} on ports {ports}...")
             arguments = "-sV"
             if detect_os:
                 arguments += " -O"
+            if udp:
+                arguments += " -sU"
+            if firewall_detection:
+                arguments += " --reason"
+            if script:
+                arguments += f" --script={script}"
+            
             self.nm.scan(hosts=host, ports=ports, arguments=arguments)
 
             if not self.nm.all_hosts():

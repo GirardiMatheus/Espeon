@@ -1,9 +1,17 @@
 import argparse
 import os
+import json
 from dotenv import load_dotenv
 from scanner.nmap_integration import NmapScanner
 from scanner.report_generator import ReportGenerator
 from scanner.cve_checker import CVEChecker
+
+def load_config():
+    config_path = "config.json"
+    if os.path.exists(config_path):
+        with open(config_path, "r") as file:
+            return json.load(file)
+    return {}
 
 def main():
     load_dotenv()
@@ -12,10 +20,15 @@ def main():
         print("API key for NVD is missing. Please set it in the .env file.")
         return
 
+    config = load_config()
+
     parser = argparse.ArgumentParser(description="Nmap Vulnerability Scanner")
     parser.add_argument("--host", required=True, help="Host to scan (IP or hostname)")
-    parser.add_argument("--ports", default="1-65535", help="Range of ports to scan (default: 1-65535)")
+    parser.add_argument("--ports", default=config.get("default_ports", "1-65535"), help="Range of ports to scan")
     parser.add_argument("--os-detection", action="store_true", help="Enable OS detection (requires root)")
+    parser.add_argument("--udp", action="store_true", default=config.get("enable_udp_scan", False), help="Enable UDP scanning")
+    parser.add_argument("--firewall", action="store_true", default=config.get("enable_firewall_detection", False), help="Enable firewall detection")
+    parser.add_argument("--script", default=config.get("custom_nmap_scripts", ""), help="Specify an Nmap script for scanning")
     parser.add_argument("--output", choices=["json", "txt", "csv"], default="txt", help="Output format (default: txt)")
     args = parser.parse_args()
 
@@ -28,7 +41,7 @@ def main():
         return
 
     print(f"Scanning host {args.host} on ports {args.ports}...")
-    results = scanner.scan_host(args.host, args.ports, args.os_detection)
+    results = scanner.scan_host(args.host, args.ports, args.os_detection, args.udp, args.firewall, args.script)
 
     if results:
         print("Analyzing vulnerabilities...")

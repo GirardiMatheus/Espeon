@@ -1,0 +1,6 @@
+{
+  "default_ports": "1-65535",
+  "enable_udp_scan": false,
+  "enable_firewall_detection": false,
+  "custom_nmap_scripts": ""
+}
