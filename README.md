@@ -30,16 +30,30 @@
 git clone https://github.com/seu-usuario/espeon.git
 cd espeon
 ```
-2. Instale as dependências:
+2. Crie e ative o ambiente virtual:
+```bash
+python -m venv nome_do_ambiente
+```
+* Ativação do ambiente virtual:
+
+macOs/Linux
+```bash
+source nome_do_ambiente/bin/activate
+```
+  Windows:
+```bash
+.\nome_do_ambiente\Scripts\activate
+```
+3. Instale as dependências:
 ```bash
 pip install -r requirements.txt
 ```
-3. Configure o ambiente:
+4. Configure o ambiente:
 ```bash
 cp config.example.json config.json
 cp .env.example .env
 ```
-4. Adicione sua chave API do NVD ao arquivo .env:
+5. Adicione sua chave API do NVD ao arquivo .env:
 ```bash
 NVD_API_KEY=sua-chave-aqui
 ```
