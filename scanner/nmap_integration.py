@@ -57,7 +57,6 @@ class NmapScanner:
                     }
                     results['ports'].append(port_info)
             
-            # Corrigindo a verificação de OS match
             if hasattr(self.nm[host], 'get') and self.nm[host].get('osmatch'):
                 results['os'] = [
                     {
