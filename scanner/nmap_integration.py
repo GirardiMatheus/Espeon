@@ -28,13 +28,10 @@ class NmapScanner:
                 arguments += f" --script={script}"
             
             self.nm.scan(hosts=host, ports=ports, arguments=arguments)
-
             if not self.nm.all_hosts():
                 logging.error("No hosts found. Ensure the target is reachable.")
                 return {}
-
             return self._parse_results(host)
-
         except nmap.PortScannerError as e:
             logging.error(f"Error running Nmap: {e}")
         except Exception as e:
@@ -47,7 +44,7 @@ class NmapScanner:
             results['host'] = host
             results['status'] = self.nm[host].state()
             results['ports'] = []
-
+            
             for proto in self.nm[host].all_protocols():
                 ports = self.nm[host][proto].keys()
                 for port in sorted(ports):
@@ -59,8 +56,9 @@ class NmapScanner:
                         'version': self.nm[host][proto][port].get('version', 'N/A'),
                     }
                     results['ports'].append(port_info)
-
-            if 'osmatch' in self.nm[host]:
+            
+            # Corrigindo a verificação de OS match
+            if hasattr(self.nm[host], 'get') and self.nm[host].get('osmatch'):
                 results['os'] = [
                     {
                         'name': osmatch['name'],
@@ -69,6 +67,9 @@ class NmapScanner:
                     }
                     for osmatch in self.nm[host]['osmatch']
                 ]
+            else:
+                results['os'] = []
+
         return results
 
     def has_admin_privileges(self) -> bool:
