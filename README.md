@@ -124,3 +124,25 @@ Este scanner deve ser usado apenas em redes e sistemas que você tem permissão 
 ## 📝 Licença
 
 Este projeto está licenciado sob a MIT License - veja o arquivo LICENSE para detalhes.-->
+
+<!--
+Distribuição
+    Distribuição:
+        Empacotar o projeto como uma ferramenta instalável com setuptools.
+        Publicar no PyPI para facilitar a instalação:
+
+        pip install espeon
+
+Monitoramento em Tempo Real
+    Adicionar uma opção para executar varreduras periódicas e monitorar hosts constantemente.
+    Armazenar os resultados em um banco de dados SQLite ou MongoDB.
+
+Futuro: Tornar-se uma Ferramenta Completa
+    Interface Web:
+        FastAPI para criar uma interface web interativa.
+        Exibir os resultados do scan e relatórios em tempo real no navegador.
+
+    Módulos de Expansão:
+        Suporte a outros scanners, como OpenVAS ou Nikto, para complementar o Nmap.
+
+-->
