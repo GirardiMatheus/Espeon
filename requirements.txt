@@ -2,3 +2,4 @@ python-nmap
 requests
 fpdf
 python-dotenv
+pytest
