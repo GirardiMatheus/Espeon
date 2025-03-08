@@ -1,6 +1,6 @@
 <div align="center">
   <h1>
-    <img src="./assets/logo.svg" width="40" height="40" alt="Security Scanner Logo" style="vertical-align: middle; margin-right: 10px;">
+    <img src="./assets/Espeon.svg" width="40" height="40" alt="Security Scanner Logo" style="vertical-align: middle; margin-right: 10px;">
     Espeon
   </h1>
 
