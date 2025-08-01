@@ -2,10 +2,18 @@ import json
 import csv
 
 class ReportGenerator:
+    """
+    Class responsible for generating reports in different formats.
+    """
     def __init__(self):
         pass
     
-    def analyze_security(self, results):
+    def analyze_security(self, results, include_generic: bool = True):
+        """
+        Analyzes the results and suggests security recommendations.
+        :param results: Dictionary of scan results.
+        :param include_generic: If True, includes generic recommendations.
+        """
         analysis = {}
         ports = results.get("ports", [])
         
@@ -25,11 +33,16 @@ class ReportGenerator:
                 analysis[port] = f"Potential outdated PostgreSQL version detected: {version}. Consider upgrading."
             elif name == "mongod":
                 analysis[port] = "MongoDB detected. Ensure authentication is enabled."
-            else:
+            if include_generic and port not in analysis:
                 analysis[port] = f"No specific issues identified for {name} ({product} {version})."
 
         return analysis
-    def generate_text_report(self, results: dict) -> str:
+    def generate_text_report(self, results: dict, include_security: bool = True) -> str:
+        """
+        Generates a text report.
+        :param results: Dictionary of results.
+        :param include_security: If True, includes security analysis.
+        """
         try:
             report = []
             report.append(f"Host: {results['host']}")
@@ -43,13 +56,13 @@ class ReportGenerator:
                 )
                 
                 if port.get("protocol") == "udp":
-                    report.append("    - Protocolo: UDP (pode ser filtrado ou bloqueado)")
+                    report.append("    - Protocol: UDP (may be filtered or blocked)")
 
                 if port.get("reason"):
-                    report.append(f"    - Motivo da resposta: {port['reason']}")
+                    report.append(f"    - Response reason: {port['reason']}")
 
                 if "scripts" in port:
-                    report.append("    - Scripts executados:")
+                    report.append("    - Executed scripts:")
                     for script in port["scripts"]:
                         report.append(f"      - {script['id']}: {script['output']}")
 
@@ -60,38 +73,55 @@ class ReportGenerator:
                         f"  Name: {os['name']}, Accuracy: {os['accuracy']}, Type: {os['type']}"
                     )
 
+            if include_security and 'security_analysis' in results:
+                report.append("\n# Security Analysis")
+                for port, msg in results['security_analysis'].items():
+                    report.append(f"  Port {port}: {msg}")
+
             if 'vulnerabilities' in results and results['vulnerabilities']:
-                report.append("\n# Análise de Segurança")
-                report.append("## Riscos Detectados:")
+                report.append("\n# Security Analysis")
+                report.append("## Detected Risks:")
                 for service, cves in results["vulnerabilities"].items():
-                    report.append(f"  Serviço: {service}")
+                    report.append(f"  Service: {service}")
                     for cve in cves:
                         report.append(
-                            f"    - CVE ID: {cve['id']}, Severidade: {cve['severity']}, "
-                            f"Descrição: {cve['description']}"
+                            f"    - CVE ID: {cve['id']}, Severity: {cve['severity']}, "
+                            f"Description: {cve['description']}"
                         )
 
-                report.append("\n## Sugestões de Mitigação:")
+                report.append("\n## Mitigation Suggestions:")
                 for service, cves in results["vulnerabilities"].items():
-                    report.append(f"  Serviço: {service}")
-                    report.append("    - Aplique patches ou atualizações mais recentes disponíveis.")
-                    report.append("    - Restrinja o acesso ao serviço a IPs confiáveis, se possível.")
-                    report.append("    - Use autenticação forte e configure firewalls adequadamente.")
+                    report.append(f"  Service: {service}")
+                    report.append("    - Apply the latest available patches or updates.")
+                    report.append("    - Restrict access to the service to trusted IPs, if possible.")
+                    report.append("    - Use strong authentication and properly configure firewalls.")
 
             return "\n".join(report)
         except Exception as e:
             raise RuntimeError(f"Failed to generate text report: {e}")
 
-    def generate_json_report(self, results: dict, output_file: str) -> None:
+    def generate_json_report(self, results: dict, output_file: str, encoding: str = "utf-8") -> None:
+        """
+        Generates a report in JSON format.
+        :param results: Dictionary of results.
+        :param output_file: Output file path.
+        :param encoding: Output file encoding.
+        """
         try:
-            with open(output_file, "w") as f:
+            with open(output_file, "w", encoding=encoding) as f:
                 json.dump(results, f, indent=4)
         except Exception as e:
             raise RuntimeError(f"Failed to generate JSON report: {e}")
 
-    def generate_csv_report(self, results: dict, output_file: str) -> None:
+    def generate_csv_report(self, results: dict, output_file: str, encoding: str = "utf-8") -> None:
+        """
+        Generates a report in CSV format.
+        :param results: Dictionary of results.
+        :param output_file: Output file path.
+        :param encoding: Output file encoding.
+        """
         try:
-            with open(output_file, "w", newline="") as f:
+            with open(output_file, "w", newline="", encoding=encoding) as f:
                 writer = csv.writer(f)
                 writer.writerow(["Port", "State", "Name", "Product", "Version", "Protocol", "Firewall Reason", "Scripts"])
                 for port in results.get("ports", []):

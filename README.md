@@ -63,6 +63,10 @@ Exemplo básico de uso:
 ```bash
 python main.py --host exemplo.com
 ```
+Exemplo com argumentos adicionais:
+```bash
+python main.py --host exemplo.com --output json --output-file resultado.json --verbose
+```
 Opções disponíveis:
 ```bash
 python main.py --help
@@ -75,6 +79,18 @@ python main.py --help
 * --firewall: Ativa detecção de firewall
 * --script: Especifica script personalizado do Nmap
 * --output: Formato de saída (json, txt, csv)
+* --output-file: Nome do arquivo de saída
+* --verbose: Ativa modo detalhado
+
+### Observações sobre a API Key
+
+Se você não fornecer uma chave de API do NVD, a verificação de CVEs será limitada devido ao rate limit público da NVD.
+
+## 🛠️ Troubleshooting
+
+- **NVD API key missing:** Verifique se o arquivo `.env` contém a variável `NVD_API_KEY`.
+- **Permissão negada para detecção de SO:** Execute como root/administrador.
+- **Nmap não encontrado:** Instale o Nmap e adicione ao PATH do sistema.
 
 ## ⚙️ Configuração
 O arquivo config.json permite personalizar configurações padrão:
