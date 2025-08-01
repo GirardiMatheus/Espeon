@@ -42,20 +42,22 @@ class CVEChecker:
             service_name = port.get("name", "").strip()
             product = port.get("product", "").strip() 
             version = port.get("version", "").strip()
+            service_key = f"{service_name}_{port.get('port', 'unknown')}"
             if not service_name:
                 logging.warning(f"Skipping port {port.get('port')} due to missing service name.")
+                vulnerabilities[service_key] = []
                 continue
-            service_key = f"{service_name}_{port.get('port', 'unknown')}"
             try:
                 cves = self._search_cves(service_name, product, version)
+                vulnerabilities[service_key] = cves or []
                 if cves:
-                    vulnerabilities[service_key] = cves
                     logging.info(f"Found {len(cves)} CVEs for {service_key} ({service_name} {product} {version})")
                 else:
                     logging.info(f"No CVEs found for {service_key} ({service_name} {product} {version})")
                 time.sleep(self.delay)
             except Exception as e:
                 logging.error(f"Error searching CVEs for {service_key}: {e}")
+                vulnerabilities[service_key] = []
         return vulnerabilities
 
     def _search_cves(self, service: str, product: str, version: str) -> List[Dict[str, Any]]:

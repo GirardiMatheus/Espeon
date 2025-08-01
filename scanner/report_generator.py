@@ -83,11 +83,14 @@ class ReportGenerator:
                 report.append("## Detected Risks:")
                 for service, cves in results["vulnerabilities"].items():
                     report.append(f"  Service: {service}")
-                    for cve in cves:
-                        report.append(
-                            f"    - CVE ID: {cve['id']}, Severity: {cve['severity']}, "
-                            f"Description: {cve['description']}"
-                        )
+                    if cves:
+                        for cve in cves:
+                            report.append(
+                                f"    - CVE ID: {cve['id']}, Severity: {cve['severity']}, "
+                                f"Description: {cve['description']}"
+                            )
+                    else:
+                        report.append("    - No CVEs found for this service.")
 
                 report.append("\n## Mitigation Suggestions:")
                 for service, cves in results["vulnerabilities"].items():
