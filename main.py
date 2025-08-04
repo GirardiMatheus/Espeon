@@ -1,12 +1,10 @@
 import argparse
 import os
-import json
 import threading
 import sys
 import time
 import itertools
 import logging
-from dotenv import load_dotenv
 from utils.logger_config import configure_logging, get_logger
 from scanner.nmap_integration import NmapScanner
 from scanner.cve_checker import CVEChecker
