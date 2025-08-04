@@ -1,12 +1,14 @@
 import json
 import csv
+from utils.logger_config import configure_logging, get_logger
 
 class ReportGenerator:
     """
     Class responsible for generating reports in different formats.
     """
     def __init__(self):
-        pass
+        self.logger = get_logger(__name__)
+        self.logger.debug("ReportGenerator initialized")
     
     def analyze_security(self, results, include_generic: bool = True):
         """
@@ -14,8 +16,13 @@ class ReportGenerator:
         :param results: Dictionary of scan results.
         :param include_generic: If True, includes generic recommendations.
         """
+        self.logger.info("Starting security analysis")
+        self.logger.debug(f"Analysis parameters - include_generic: {include_generic}")
+        
         analysis = {}
         ports = results.get("ports", [])
+        
+        self.logger.debug(f"Analyzing {len(ports)} ports for security issues")
         
         for port_info in ports:
             port = port_info.get("port")
@@ -36,13 +43,19 @@ class ReportGenerator:
             if include_generic and port not in analysis:
                 analysis[port] = f"No specific issues identified for {name} ({product} {version})."
 
+        self.logger.info(f"Security analysis completed. Found {len(analysis)} items to analyze")
+        self.logger.debug(f"Security analysis results: {analysis}")
         return analysis
+
     def generate_text_report(self, results: dict, include_security: bool = True) -> str:
         """
         Generates a text report.
         :param results: Dictionary of results.
         :param include_security: If True, includes security analysis.
         """
+        self.logger.info("Generating text report")
+        self.logger.debug(f"Report parameters - include_security: {include_security}")
+        
         try:
             report = []
             report.append(f"Host: {results['host']}")
@@ -99,8 +112,11 @@ class ReportGenerator:
                     report.append("    - Restrict access to the service to trusted IPs, if possible.")
                     report.append("    - Use strong authentication and properly configure firewalls.")
 
+            self.logger.info("Text report generated successfully")
+            self.logger.debug(f"Report length: {len(report)} lines")
             return "\n".join(report)
         except Exception as e:
+            self.logger.error(f"Failed to generate text report: {e}")
             raise RuntimeError(f"Failed to generate text report: {e}")
 
     def generate_json_report(self, results: dict, output_file: str, encoding: str = "utf-8") -> None:
@@ -110,10 +126,15 @@ class ReportGenerator:
         :param output_file: Output file path.
         :param encoding: Output file encoding.
         """
+        self.logger.info(f"Generating JSON report to {output_file}")
+        self.logger.debug(f"JSON report parameters - encoding: {encoding}")
+        
         try:
             with open(output_file, "w", encoding=encoding) as f:
                 json.dump(results, f, indent=4)
+            self.logger.info(f"JSON report successfully saved to {output_file}")
         except Exception as e:
+            self.logger.error(f"Failed to generate JSON report: {e}")
             raise RuntimeError(f"Failed to generate JSON report: {e}")
 
     def generate_csv_report(self, results: dict, output_file: str, encoding: str = "utf-8") -> None:
@@ -123,6 +144,9 @@ class ReportGenerator:
         :param output_file: Output file path.
         :param encoding: Output file encoding.
         """
+        self.logger.info(f"Generating CSV report to {output_file}")
+        self.logger.debug(f"CSV report parameters - encoding: {encoding}")
+        
         try:
             with open(output_file, "w", newline="", encoding=encoding) as f:
                 writer = csv.writer(f)
@@ -147,5 +171,7 @@ class ReportGenerator:
                     for service, cves in results["vulnerabilities"].items():
                         for cve in cves:
                             writer.writerow([service, cve["id"], cve["description"], cve["severity"]])
+            self.logger.info(f"CSV report successfully saved to {output_file}")
         except Exception as e:
+            self.logger.error(f"Failed to generate CSV report: {e}")
             raise RuntimeError(f"Failed to generate CSV report: {e}")
