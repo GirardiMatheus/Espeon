@@ -4,6 +4,7 @@ import json
 import threading
 import sys
 import time
+import logging
 from dotenv import load_dotenv
 from scanner.nmap_integration import NmapScanner
 from scanner.report_generator import ReportGenerator
@@ -47,7 +48,6 @@ def main():
     args = parser.parse_args()
 
     if args.verbose:
-        import logging
         logging.basicConfig(level=logging.DEBUG)
 
     scanner = NmapScanner()

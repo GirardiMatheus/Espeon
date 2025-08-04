@@ -3,6 +3,8 @@ import logging
 import time
 from typing import List, Dict, Any, Optional
 import json
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 class CVEChecker:
     """
@@ -13,23 +15,51 @@ class CVEChecker:
         api_key: Optional[str] = None,
         results_per_page: int = 10,
         delay: float = 0.6,
-        proxies: Optional[Dict[str, str]] = None
+        proxies: Optional[Dict[str, str]] = None,
+        max_retries: int = 3,
+        backoff_factor: float = 0.3
     ):
         """
         :param api_key: NVD API key (optional, but recommended).
         :param results_per_page: Number of results per page.
         :param delay: Delay between requests to respect rate limit.
         :param proxies: Dictionary of proxies for requests.
+        :param max_retries: Maximum number of retries for failed requests.
+        :param backoff_factor: Backoff factor for retry delays.
         """
         self.api_key = api_key
         self.base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-        self.session = requests.Session()
+        self.session = self._create_retry_session(max_retries, backoff_factor)
         if api_key:
             self.session.headers.update({'apiKey': api_key})
         if proxies:
             self.session.proxies.update(proxies)
         self.results_per_page = results_per_page
         self.delay = delay
+
+    def _create_retry_session(self, max_retries: int, backoff_factor: float) -> requests.Session:
+        """
+        Creates a session with retry strategy for robust API calls.
+        :param max_retries: Maximum number of retries.
+        :param backoff_factor: Backoff factor for exponential delays.
+        :return: Configured requests session.
+        """
+        session = requests.Session()
+        
+        retry_strategy = Retry(
+            total=max_retries,
+            status_forcelist=[429, 500, 502, 503, 504],  # HTTP status codes to retry
+            allowed_methods=["HEAD", "GET", "OPTIONS"],  # HTTP methods to retry
+            backoff_factor=backoff_factor,
+            raise_on_redirect=False,
+            raise_on_status=False
+        )
+        
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        
+        return session
 
     def analyze_results(self, ports: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """
