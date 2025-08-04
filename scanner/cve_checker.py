@@ -5,6 +5,8 @@ import json
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from utils.logger_config import configure_logging, get_logger
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 class CVEChecker:
     """
@@ -17,7 +19,8 @@ class CVEChecker:
         delay: float = 0.6,
         proxies: Optional[Dict[str, str]] = None,
         max_retries: int = 3,
-        backoff_factor: float = 0.3
+        backoff_factor: float = 0.3,
+        max_workers: int = 4
     ):
         """
         :param api_key: NVD API key (optional, but recommended).
@@ -26,6 +29,7 @@ class CVEChecker:
         :param proxies: Dictionary of proxies for requests.
         :param max_retries: Maximum number of retries for failed requests.
         :param backoff_factor: Backoff factor for retry delays.
+        :param max_workers: Maximum number of concurrent threads.
         """
         self.logger = get_logger(__name__)
         self.logger.debug("Initializing CVEChecker")
@@ -43,8 +47,10 @@ class CVEChecker:
             self.logger.debug(f"Proxies configured: {list(proxies.keys())}")
         self.results_per_page = results_per_page
         self.delay = delay
+        self.max_workers = max_workers
+        self._rate_limit_lock = threading.Lock()
         
-        self.logger.info(f"CVEChecker initialized - results_per_page: {results_per_page}, delay: {delay}s")
+        self.logger.info(f"CVEChecker initialized - results_per_page: {results_per_page}, delay: {delay}s, max_workers: {max_workers}")
 
     def _create_retry_session(self, max_retries: int, backoff_factor: float) -> requests.Session:
         """
@@ -74,40 +80,68 @@ class CVEChecker:
 
     def analyze_results(self, ports: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Analyzes port results and searches for related CVEs.
+        Analyzes port results and searches for related CVEs using concurrent threads.
         :param ports: List of dictionaries with port/service information.
         :return: Dictionary {service_key: [cves]}
         """
-        self.logger.info(f"Starting CVE analysis for {len(ports)} ports")
+        self.logger.info(f"Starting concurrent CVE analysis for {len(ports)} ports using {self.max_workers} workers")
         vulnerabilities = {}
         
-        for i, port in enumerate(ports, 1):
+        # Prepare tasks for concurrent execution
+        tasks = []
+        for port in ports:
             service_name = port.get("name", "").strip()
             product = port.get("product", "").strip() 
             version = port.get("version", "").strip()
             service_key = f"{service_name}_{port.get('port', 'unknown')}"
             
-            self.logger.debug(f"Processing port {i}/{len(ports)}: {service_key} ({service_name} {product} {version})")
-            
             if not service_name:
                 self.logger.warning(f"Skipping port {port.get('port')} due to missing service name.")
                 vulnerabilities[service_key] = []
                 continue
-            try:
-                cves = self._search_cves(service_name, product, version)
-                vulnerabilities[service_key] = cves or []
-                if cves:
-                    self.logger.info(f"Found {len(cves)} CVEs for {service_key} ({service_name} {product} {version})")
-                else:
-                    self.logger.info(f"No CVEs found for {service_key} ({service_name} {product} {version})")
-                time.sleep(self.delay)
-            except Exception as e:
-                self.logger.error(f"Error searching CVEs for {service_key}: {e}")
-                vulnerabilities[service_key] = []
+                
+            tasks.append((service_key, service_name, product, version))
+        
+        # Execute CVE searches concurrently
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_service = {
+                executor.submit(self._search_cves_with_rate_limit, service_name, product, version): service_key
+                for service_key, service_name, product, version in tasks
+            }
+            
+            completed_count = 0
+            for future in as_completed(future_to_service):
+                service_key = future_to_service[future]
+                completed_count += 1
+                
+                try:
+                    cves = future.result()
+                    vulnerabilities[service_key] = cves or []
+                    if cves:
+                        self.logger.info(f"[{completed_count}/{len(tasks)}] Found {len(cves)} CVEs for {service_key}")
+                    else:
+                        self.logger.info(f"[{completed_count}/{len(tasks)}] No CVEs found for {service_key}")
+                except Exception as e:
+                    self.logger.error(f"Error searching CVEs for {service_key}: {e}")
+                    vulnerabilities[service_key] = []
         
         total_cves = sum(len(cves) for cves in vulnerabilities.values())
-        self.logger.info(f"CVE analysis completed - found {total_cves} total CVEs across {len(vulnerabilities)} services")
+        self.logger.info(f"Concurrent CVE analysis completed - found {total_cves} total CVEs across {len(vulnerabilities)} services")
         return vulnerabilities
+
+    def _search_cves_with_rate_limit(self, service: str, product: str, version: str) -> List[Dict[str, Any]]:
+        """
+        Thread-safe wrapper for _search_cves with rate limiting.
+        :param service: Service name.
+        :param product: Product.
+        :param version: Version.
+        :return: List of CVEs.
+        """
+        # Apply rate limiting across all threads
+        with self._rate_limit_lock:
+            time.sleep(self.delay)
+        
+        return self._search_cves(service, product, version)
 
     def _search_cves(self, service: str, product: str, version: str) -> List[Dict[str, Any]]:
         """
