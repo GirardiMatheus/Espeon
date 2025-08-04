@@ -13,8 +13,8 @@ class NmapScanner:
         self.logger.debug("NmapScanner initialized")
 
     def scan_host(self, host: str, ports: str = "1-65535", detect_os: bool = False, 
-                  udp: bool = False, firewall_detection: bool = False, 
-                  script: Optional[str] = None, extra_args: Optional[str] = None) -> Dict:
+                    udp: bool = False, firewall_detection: bool = False, 
+                    script: Optional[str] = None, extra_args: Optional[str] = None) -> Dict:
         """
         Perform comprehensive host scanning
         
