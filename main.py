@@ -1,13 +1,16 @@
 import argparse
 import os
-import threading
 import sys
 import time
 import itertools
+import threading
 import logging
+import json
+from dotenv import load_dotenv
 from utils.logger_config import configure_logging, get_logger
 from scanner.nmap_integration import NmapScanner
 from scanner.cve_checker import CVEChecker
+from scanner.report_generator import ReportGenerator
 
 def load_config():
     config_path = "config.json"
@@ -17,7 +20,6 @@ def load_config():
     return {}
 
 def spinner(msg, stop_event):
-    """Displays an animated spinner in the terminal while stop_event is not set."""
     for c in itertools.cycle('|/-\\'):
         if stop_event.is_set():
             break
@@ -27,132 +29,111 @@ def spinner(msg, stop_event):
     sys.stdout.write('\r' + ' ' * (len(msg) + 2) + '\r')
 
 def main():
-    """Main scanner function."""
     parser = argparse.ArgumentParser(description="Espeon - Advanced Vulnerability Scanner")
+
     parser.add_argument("--host", required=True, help="Target host or IP address")
-    parser.add_argument("--ports", help="Port range (e.g., 1-1000)")
-    parser.add_argument("--output", help="Output file for results")
+    parser.add_argument("--ports", help="Port range (e.g., 1-65535)")
+    parser.add_argument("--os-detection", action="store_true", help="Enable OS detection")
+    parser.add_argument("--udp", action="store_true", help="Enable UDP scan")
+    parser.add_argument("--firewall", action="store_true", help="Enable firewall detection")
+    parser.add_argument("--script", help="Custom Nmap script to run")
+    parser.add_argument("--output", nargs="+", choices=["json", "csv", "txt"], default=["json"], help="Report format(s)")
+    parser.add_argument("--output-file", help="Output filename without extension")
     parser.add_argument("--api-key", help="NVD API key for CVE queries")
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    parser.add_argument("--log-file", help="Log file path")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose mode")
 
     args = parser.parse_args()
 
-    # Configure logging via utils/logger_config.py
-    log_level = logging.DEBUG if args.debug else logging.INFO
-    configure_logging(level=log_level, log_file=args.log_file)
+    # Load environment variables and config
+    load_dotenv()
+    config = load_config()
+
+    # Logging setup
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    configure_logging(level=log_level)
     logger = get_logger(__name__)
 
     logger.info("=== Espeon Vulnerability Scanner Started ===")
-    logger.debug(f"Arguments received: {args}")
-    logger.info(f"Target: {args.host}")
+    logger.debug(f"Arguments: {args}")
 
     try:
         scanner = NmapScanner()
-        logger.info("Nmap scanner initialized successfully")
 
-        ports = args.ports if args.ports else "1-65535"
-        logger.info(f"Starting port scan on target {args.host} with port range: {ports}")
+        # Definições com fallback para config.json
+        ports = args.ports or config.get("default_ports", "1-65535")
+        enable_udp = args.udp or config.get("enable_udp_scan", False)
+        enable_firewall = args.firewall or config.get("enable_firewall_detection", False)
+        os_detection = args.os_detection
+        custom_script = args.script or config.get("custom_nmap_scripts", "")
 
-        # Spinner in thread while scan is running
+        logger.info(f"Scanning host: {args.host} | Ports: {ports}")
+
         stop_spinner = threading.Event()
         spinner_thread = threading.Thread(target=spinner, args=("Scanning target...", stop_spinner))
         spinner_thread.start()
 
-        scan_results = scanner.scan_host(args.host, ports)
+        scan_results = scanner.scan_host(
+            host=args.host,
+            ports=ports,
+            udp=enable_udp,
+            detect_os=os_detection,
+            firewall_detection=enable_firewall,
+            script=custom_script
+        )
 
-        # Stop spinner after scan
         stop_spinner.set()
         spinner_thread.join()
 
-        logger.debug(f"Raw scan_results type: {type(scan_results)}")
-        logger.debug(f"Raw scan_results content: {scan_results}")
-
-        if not scan_results:
-            logger.warning("No open ports found or scan failed. Exiting...")
+        if not scan_results or "ports" not in scan_results or not isinstance(scan_results["ports"], list):
+            logger.warning("No results from scan or invalid format.")
             return
 
-        # Validate and normalize scan_results format
-        if isinstance(scan_results, dict):
-            logger.debug("Converting dict scan_results to list format")
-            logger.debug(f"Dict keys: {list(scan_results.keys())}")
-            # If it's a dict, extract the ports information
-            if 'ports' in scan_results:
-                scan_results = scan_results['ports']
-                if not scan_results:  # Check if ports list is empty
-                    logger.info("No open ports found on target. Exiting...")
-                    return
-            elif 'tcp' in scan_results:
-                # Convert nmap-style dict to list format
-                ports_list = []
-                for port_num, port_info in scan_results['tcp'].items():
-                    port_data = {
-                        'port': port_num,
-                        'state': port_info.get('state', 'unknown'),
-                        'name': port_info.get('name', ''),
-                        'product': port_info.get('product', ''),
-                        'version': port_info.get('version', '')
-                    }
-                    ports_list.append(port_data)
-                scan_results = ports_list
-                if not scan_results:  # Check if ports list is empty
-                    logger.info("No open ports found on target. Exiting...")
-                    return
-            else:
-                logger.warning(f"Dict scan_results has no recognizable port data. Keys: {list(scan_results.keys())}")
-                logger.debug(f"scan_results content: {scan_results}")
-                logger.info("No open ports found. Exiting...")
-                return
-        elif not isinstance(scan_results, list):
-            logger.error(f"Unexpected scan_results format: {type(scan_results)}. Expected list or dict.")
-            logger.debug(f"scan_results content: {scan_results}")
-            return
+        logger.info(f"Scan complete. {len(scan_results['ports'])} open ports detected.")
 
-        # Check if all items in scan_results are dictionaries
-        invalid_items = [item for item in scan_results if not isinstance(item, dict)]
-        if invalid_items:
-            logger.error(f"Found {len(invalid_items)} invalid items in scan_results. Expected dictionaries.")
-            logger.debug(f"Invalid items: {invalid_items}")
-            logger.info("Filtering out invalid items and continuing...")
-            scan_results = [item for item in scan_results if isinstance(item, dict)]
-
-        if not scan_results:
-            logger.warning("No valid scan results after filtering. Exiting...")
-            return
-
-        logger.info(f"Port scan completed. {len(scan_results)} open ports found.")
-        logger.debug(f"Scan results: {scan_results}")
-
-        api_key = args.api_key or os.getenv('NVD_API_KEY')
+        api_key = args.api_key or os.getenv("NVD_API_KEY")
         if not api_key:
-            logger.warning("No API key provided; CVE analysis may be limited or fail.")
+            logger.warning("No NVD API key provided. CVE lookups may be limited or fail.")
 
         cve_checker = CVEChecker(api_key=api_key)
-        logger.info("CVEChecker initialized")
-
-        logger.info("Starting vulnerability analysis...")
-        vulnerabilities = cve_checker.analyze_results(scan_results)
-        logger.info("Vulnerability analysis completed")
-        logger.debug(f"Vulnerabilities found: {vulnerabilities}")
+        vulnerabilities = cve_checker.analyze_results(scan_results["ports"])
 
         results = {
-            "target": args.host,
-            "scan_results": scan_results,
+            "host": args.host,
+            "status": "completed",
+            "ports": scan_results["ports"],
             "vulnerabilities": vulnerabilities
         }
 
-        output_file = args.output or f"espeon_results_{args.host}.json"
-        logger.info(f"Saving results to {output_file}...")
-        cve_checker.save_to_json(results, output_file)
+        report_generator = ReportGenerator()
+        results["security_analysis"] = report_generator.analyze_security(results)
 
-        total_cves = sum(len(cves) for cves in vulnerabilities.values())
-        logger.info(f"Scan completed. {total_cves} potential vulnerabilities found.")
-        logger.info(f"Results saved to: {output_file}")
+        output_base = args.output_file or f"espeon_results_{args.host}"
+
+        if "json" in args.output:
+            json_file = f"{output_base}.json"
+            report_generator.generate_json_report(results, json_file)
+            logger.info(f"JSON report saved to: {json_file}")
+
+        if "txt" in args.output:
+            txt_file = f"{output_base}.txt"
+            text_report = report_generator.generate_text_report(results)
+            with open(txt_file, "w", encoding="utf-8") as f:
+                f.write(text_report)
+            logger.info(f"TXT report saved to: {txt_file}")
+
+        if "csv" in args.output:
+            csv_file = f"{output_base}.csv"
+            report_generator.generate_csv_report(results, csv_file)
+            logger.info(f"CSV report saved to: {csv_file}")
+
+        total_cves = sum(len(v) for v in vulnerabilities.values())
+        logger.info(f"Found {total_cves} potential vulnerabilities.")
+        logger.info("Espeon scan complete.")
 
     except KeyboardInterrupt:
-        logger.warning("Scan interrupted by user (KeyboardInterrupt)")
-    except Exception:
-        logger.exception("Unexpected error occurred during scan execution")
+        logger.warning("Scan interrupted by user.")
+    except Exception as e:
+        logger.exception("An unexpected error occurred.")
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -86,31 +86,46 @@ class ReportGenerator:
                         f"  Name: {os['name']}, Accuracy: {os['accuracy']}, Type: {os['type']}"
                     )
 
-            if include_security and 'security_analysis' in results:
-                report.append("\n# Security Analysis")
-                for port, msg in results['security_analysis'].items():
-                    report.append(f"  Port {port}: {msg}")
+            # Consolidate security analysis section
+            if include_security:
+                has_security_data = False
+                security_section = ["\n# Security Analysis"]
+                
+                # Add security analysis if available
+                if 'security_analysis' in results and results['security_analysis']:
+                    security_section.append("## Security Recommendations:")
+                    for port, msg in results['security_analysis'].items():
+                        security_section.append(f"  Port {port}: {msg}")
+                    has_security_data = True
 
-            if 'vulnerabilities' in results and results['vulnerabilities']:
-                report.append("\n# Security Analysis")
-                report.append("## Detected Risks:")
-                for service, cves in results["vulnerabilities"].items():
-                    report.append(f"  Service: {service}")
-                    if cves:
-                        for cve in cves:
-                            report.append(
-                                f"    - CVE ID: {cve['id']}, Severity: {cve['severity']}, "
-                                f"Description: {cve['description']}"
-                            )
-                    else:
-                        report.append("    - No CVEs found for this service.")
+                # Add CVE vulnerabilities if available
+                if 'vulnerabilities' in results and results['vulnerabilities']:
+                    if has_security_data:
+                        security_section.append("")  # Add spacing
+                    security_section.append("## Detected Vulnerabilities:")
+                    for service, cves in results["vulnerabilities"].items():
+                        security_section.append(f"  Service: {service}")
+                        if cves:
+                            for cve in cves:
+                                security_section.append(
+                                    f"    - CVE ID: {cve['id']}, Severity: {cve['severity']}, "
+                                    f"Description: {cve['description']}"
+                                )
+                        else:
+                            security_section.append("    - No CVEs found for this service.")
 
-                report.append("\n## Mitigation Suggestions:")
-                for service, cves in results["vulnerabilities"].items():
-                    report.append(f"  Service: {service}")
-                    report.append("    - Apply the latest available patches or updates.")
-                    report.append("    - Restrict access to the service to trusted IPs, if possible.")
-                    report.append("    - Use strong authentication and properly configure firewalls.")
+                    security_section.append("\n## Mitigation Suggestions:")
+                    for service, cves in results["vulnerabilities"].items():
+                        if cves:  # Only show suggestions for services with actual CVEs
+                            security_section.append(f"  Service: {service}")
+                            security_section.append("    - Apply the latest available patches or updates.")
+                            security_section.append("    - Restrict access to the service to trusted IPs, if possible.")
+                            security_section.append("    - Use strong authentication and properly configure firewalls.")
+                    has_security_data = True
+
+                # Only add security section if there's actual security data
+                if has_security_data:
+                    report.extend(security_section)
 
             self.logger.info("Text report generated successfully")
             self.logger.debug(f"Report length: {len(report)} lines")
