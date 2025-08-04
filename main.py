@@ -19,7 +19,7 @@ def load_config():
     return {}
 
 def spinner(msg, stop_event):
-    """Exibe um spinner animado no terminal enquanto stop_event não for setado."""
+    """Displays an animated spinner in the terminal while stop_event is not set."""
     for c in itertools.cycle('|/-\\'):
         if stop_event.is_set():
             break
@@ -29,7 +29,7 @@ def spinner(msg, stop_event):
     sys.stdout.write('\r' + ' ' * (len(msg) + 2) + '\r')
 
 def main():
-    """Função principal do scanner."""
+    """Main scanner function."""
     parser = argparse.ArgumentParser(description="Espeon - Advanced Vulnerability Scanner")
     parser.add_argument("--host", required=True, help="Target host or IP address")
     parser.add_argument("--ports", help="Port range (e.g., 1-1000)")
@@ -40,7 +40,7 @@ def main():
 
     args = parser.parse_args()
 
-    # Configura logging via utils/logger_config.py
+    # Configure logging via utils/logger_config.py
     log_level = logging.DEBUG if args.debug else logging.INFO
     configure_logging(level=log_level, log_file=args.log_file)
     logger = get_logger(__name__)
@@ -56,14 +56,14 @@ def main():
         ports = args.ports if args.ports else "1-65535"
         logger.info(f"Starting port scan on target {args.host} with port range: {ports}")
 
-        # Spinner em thread enquanto o scan é executado
+        # Spinner in thread while scan is running
         stop_spinner = threading.Event()
         spinner_thread = threading.Thread(target=spinner, args=("Scanning target...", stop_spinner))
         spinner_thread.start()
 
         scan_results = scanner.scan_host(args.host, ports)
 
-        # Para spinner após o scan
+        # Stop spinner after scan
         stop_spinner.set()
         spinner_thread.join()
 
