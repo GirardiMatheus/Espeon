@@ -28,7 +28,7 @@
 1. Clone o repositório:
 ```bash
 git clone https://github.com/GirardiMatheus/Espeon.git
-cd espeon
+cd Espeon
 ```
 2. Crie e ative o ambiente virtual:
 ```bash
